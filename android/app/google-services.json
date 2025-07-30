@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "74671224946",
+    "project_id": "accident-management-3eadf",
+    "storage_bucket": "accident-management-3eadf.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:74671224946:android:7c753ab9e14d6bc6fa6aeb",
+        "android_client_info": {
+          "package_name": "com.example.accident_management4"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDJydCCRiglaH4AnWFtrKf7yjPdIz27HXA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
