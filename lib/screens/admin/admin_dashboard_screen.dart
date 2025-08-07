@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:accident_management4/core/theme/app_theme.dart';
 import 'package:accident_management4/core/constants/app_constants.dart';
 import 'package:accident_management4/widgets/custom_button.dart';
+import 'package:accident_management4/services/auth_service.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({Key? key}) : super(key: key);
@@ -11,10 +12,12 @@ class AdminDashboardScreen extends StatefulWidget {
 }
 
 class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
+  final AuthService _authService = AuthService();
   int _totalScans = 0;
   int _successfulScans = 0;
   int _todayScans = 0;
   bool _isLoading = true;
+  String _adminName = 'Administrateur';
 
   @override
   void initState() {
@@ -23,15 +26,33 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   Future<void> _loadDashboardData() async {
-    // TODO: Charger les données depuis Firebase
-    await Future.delayed(const Duration(seconds: 1)); // Simulation
-    
-    setState(() {
-      _totalScans = 156;
-      _successfulScans = 142;
-      _todayScans = 8;
-      _isLoading = false;
-    });
+    try {
+      // Get current admin name
+      final user = _authService.currentUser;
+      if (user != null) {
+        final userDoc = await _authService.getUserDocument(user.uid);
+        if (userDoc.exists) {
+          final userData = userDoc.data() as Map<String, dynamic>;
+          setState(() {
+            _adminName = userData['displayName'] ?? user.displayName ?? 'Administrateur';
+          });
+        }
+      }
+      
+      // TODO: Charger les vraies statistiques depuis Firebase
+      await Future.delayed(const Duration(seconds: 1)); // Simulation
+      
+      setState(() {
+        _totalScans = 156;
+        _successfulScans = 142;
+        _todayScans = 8;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
   @override
@@ -340,12 +361,20 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             child: const Text('Annuler'),
           ),
           ElevatedButton(
-            onPressed: () {
-              Navigator.pushNamedAndRemoveUntil(
-                context,
-                AppConstants.loginRoute,
-                (route) => false,
-              );
+            onPressed: () async {
+              Navigator.pop(context); // Close dialog
+              
+              // Sign out
+              await _authService.signOut();
+              
+              // Navigate to login and clear navigation stack
+              if (mounted) {
+                Navigator.pushNamedAndRemoveUntil(
+                  context,
+                  AppConstants.loginRoute,
+                  (route) => false,
+                );
+              }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppTheme.errorColor,

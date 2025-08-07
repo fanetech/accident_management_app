@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:accident_management4/core/theme/app_theme.dart';
 import 'package:accident_management4/core/constants/app_constants.dart';
 import 'package:accident_management4/widgets/custom_button.dart';
+import 'package:accident_management4/services/auth_service.dart';
 
 class ClientDashboardScreen extends StatefulWidget {
   const ClientDashboardScreen({Key? key}) : super(key: key);
@@ -11,9 +12,11 @@ class ClientDashboardScreen extends StatefulWidget {
 }
 
 class _ClientDashboardScreenState extends State<ClientDashboardScreen> {
+  final AuthService _authService = AuthService();
   int _totalRegistrations = 0;
   int _todayRegistrations = 0;
   bool _isLoading = true;
+  String _userName = 'Utilisateur';
 
   @override
   void initState() {
@@ -22,14 +25,32 @@ class _ClientDashboardScreenState extends State<ClientDashboardScreen> {
   }
 
   Future<void> _loadDashboardData() async {
-    // TODO: Charger les données depuis Firebase
-    await Future.delayed(const Duration(seconds: 1)); // Simulation
-    
-    setState(() {
-      _totalRegistrations = 42;
-      _todayRegistrations = 5;
-      _isLoading = false;
-    });
+    try {
+      // Get current user name
+      final user = _authService.currentUser;
+      if (user != null) {
+        final userDoc = await _authService.getUserDocument(user.uid);
+        if (userDoc.exists) {
+          final userData = userDoc.data() as Map<String, dynamic>;
+          setState(() {
+            _userName = userData['displayName'] ?? user.displayName ?? 'Utilisateur';
+          });
+        }
+      }
+      
+      // TODO: Charger les vraies statistiques depuis Firebase
+      await Future.delayed(const Duration(seconds: 1)); // Simulation
+      
+      setState(() {
+        _totalRegistrations = 42;
+        _todayRegistrations = 5;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
   @override
@@ -82,7 +103,7 @@ class _ClientDashboardScreenState extends State<ClientDashboardScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    'Bienvenue !',
+                                    'Bienvenue, $_userName !',
                                     style: AppTheme.subheadingStyle,
                                   ),
                                   const SizedBox(height: 4),
@@ -301,12 +322,20 @@ class _ClientDashboardScreenState extends State<ClientDashboardScreen> {
             child: const Text('Annuler'),
           ),
           ElevatedButton(
-            onPressed: () {
-              Navigator.pushNamedAndRemoveUntil(
-                context,
-                AppConstants.loginRoute,
-                (route) => false,
-              );
+            onPressed: () async {
+              Navigator.pop(context); // Close dialog
+              
+              // Sign out
+              await _authService.signOut();
+              
+              // Navigate to login and clear navigation stack
+              if (mounted) {
+                Navigator.pushNamedAndRemoveUntil(
+                  context,
+                  AppConstants.loginRoute,
+                  (route) => false,
+                );
+              }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppTheme.errorColor,

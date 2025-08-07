@@ -17,6 +17,7 @@ class AuthService {
     required String password,
     required String displayName,
     String? phoneNumber,
+    String? role,
   }) async {
     try {
       // Create user with email and password
@@ -35,6 +36,7 @@ class AuthService {
           email: email,
           displayName: displayName,
           phoneNumber: phoneNumber,
+          role: role,
         );
       }
 
@@ -90,6 +92,7 @@ class AuthService {
     required String email,
     required String displayName,
     String? phoneNumber,
+    String? role,
   }) async {
     try {
       await _firestore.collection('users').doc(uid).set({
@@ -97,7 +100,7 @@ class AuthService {
         'email': email,
         'displayName': displayName,
         'phoneNumber': phoneNumber,
-        'role': 'client', // Default role
+        'role': role ?? 'client', // Use provided role or default to client
         'createdAt': FieldValue.serverTimestamp(),
         'lastLogin': FieldValue.serverTimestamp(),
       });
@@ -128,6 +131,34 @@ class AuthService {
     } catch (e) {
       throw 'Erreur lors de la récupération du profil';
     }
+  }
+
+  // Get current user role
+  Future<String?> getCurrentUserRole() async {
+    try {
+      final user = currentUser;
+      if (user == null) return null;
+      
+      final doc = await getUserDocument(user.uid);
+      if (!doc.exists) return null;
+      
+      final data = doc.data() as Map<String, dynamic>;
+      return data['role'] as String?;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // Check if user is admin
+  Future<bool> isAdmin() async {
+    final role = await getCurrentUserRole();
+    return role == 'admin';
+  }
+
+  // Check if user is client
+  Future<bool> isClient() async {
+    final role = await getCurrentUserRole();
+    return role == 'client';
   }
 
   // Delete user account

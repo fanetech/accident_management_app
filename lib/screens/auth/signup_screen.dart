@@ -27,6 +27,7 @@ class _SignupScreenState extends State<SignupScreen> {
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _acceptTerms = false;
+  String _selectedRole = AppConstants.clientRole; // Default role
 
   @override
   void dispose() {
@@ -57,11 +58,11 @@ class _SignupScreenState extends State<SignupScreen> {
       );
       
       if (userCredential != null && mounted) {
-        _showSuccessSnackBar('Compte créé avec succès!');
-        // Navigate to role detection or dashboard
+        _showSuccessSnackBar('Compte créé avec succès! Veuillez vous connecter.');
+        // Navigate to login page after successful signup
         Navigator.pushReplacementNamed(
           context,
-          AppConstants.roleDetectionRoute,
+          AppConstants.loginRoute,
         );
       }
     } catch (e) {

@@ -23,13 +23,15 @@ import 'package:accident_management4/screens/admin/admin_dashboard_screen.dart';
 import 'package:accident_management4/screens/admin/admin_scanner_screen.dart';
 import 'package:accident_management4/screens/admin/admin_identified_screen.dart';
 
+// Auth Guards
+import 'package:accident_management4/widgets/auth/auth_guard.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
   // Initialize Firebase
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+   // Initialize Firebase
+  await _initializeFirebase();
   
   runApp(const MyApp());
 }
@@ -52,17 +54,33 @@ class MyApp extends StatelessWidget {
         AppConstants.signupRoute: (context) => const SignupScreen(),
         AppConstants.roleDetectionRoute: (context) => const RoleDetectionScreen(),
         
-        // Client routes
-        AppConstants.clientDashboardRoute: (context) => const ClientDashboardScreen(),
-        AppConstants.clientRegisterRoute: (context) => const ClientRegisterScreen(),
-        AppConstants.clientBiometricRoute: (context) => const ClientBiometricScreen(),
-        AppConstants.clientConfirmationRoute: (context) => const ClientConfirmationScreen(),
-        AppConstants.clientPeopleListRoute: (context) => const ClientPeopleListScreen(),
+        // Client routes (protected with ClientAuthGuard)
+        AppConstants.clientDashboardRoute: (context) => const ClientAuthGuard(
+          child: ClientDashboardScreen(),
+        ),
+        AppConstants.clientRegisterRoute: (context) => const ClientAuthGuard(
+          child: ClientRegisterScreen(),
+        ),
+        AppConstants.clientBiometricRoute: (context) => const ClientAuthGuard(
+          child: ClientBiometricScreen(),
+        ),
+        AppConstants.clientConfirmationRoute: (context) => const ClientAuthGuard(
+          child: ClientConfirmationScreen(),
+        ),
+        AppConstants.clientPeopleListRoute: (context) => const ClientAuthGuard(
+          child: ClientPeopleListScreen(),
+        ),
         
-        // Admin routes
-        AppConstants.adminDashboardRoute: (context) => const AdminDashboardScreen(),
-        AppConstants.adminScannerRoute: (context) => const AdminScannerScreen(),
-        AppConstants.adminIdentifiedRoute: (context) => const AdminIdentifiedScreen(),
+        // Admin routes (protected with AdminAuthGuard)
+        AppConstants.adminDashboardRoute: (context) => const AdminAuthGuard(
+          child: AdminDashboardScreen(),
+        ),
+        AppConstants.adminScannerRoute: (context) => const AdminAuthGuard(
+          child: AdminScannerScreen(),
+        ),
+        AppConstants.adminIdentifiedRoute: (context) => const AdminAuthGuard(
+          child: AdminIdentifiedScreen(),
+        ),
         // TODO: Add remaining admin routes
         // AppConstants.adminCallingRoute: (context) => const AdminCallingScreen(),
         // AppConstants.adminHistoryRoute: (context) => const AdminHistoryScreen(),
@@ -102,5 +120,21 @@ class MyApp extends StatelessWidget {
       ),
     );
     */
+  }
+}
+
+Future<void> _initializeFirebase() async {
+  try {
+    if (Firebase.apps.isEmpty) {
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+      print('Firebase initialized successfully');
+    } else {
+      print('Firebase already initialized');
+    }
+  } catch (e) {
+    print('Error initializing Firebase: $e');
+    // Handle the error appropriately
   }
 }
