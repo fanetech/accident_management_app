@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:accident_management4/core/theme/app_theme.dart';
 
 class CustomTextField extends StatelessWidget {
-  final String label;
+  final String? label; // Made optional since sometimes you don't need a label
   final String? hint;
   final TextEditingController? controller;
   final String? Function(String?)? validator;
@@ -15,10 +15,13 @@ class CustomTextField extends StatelessWidget {
   final bool enabled;
   final void Function(String)? onChanged;
   final List<TextInputFormatter>? inputFormatters;
+  final Color? fillColor; // Added fillColor parameter
+  final TextStyle? textStyle; // Added textStyle parameter
+  final TextStyle? hintStyle; // Added hintStyle parameter
 
   const CustomTextField({
     Key? key,
-    required this.label,
+    this.label, // Made optional
     this.hint,
     this.controller,
     this.validator,
@@ -30,6 +33,9 @@ class CustomTextField extends StatelessWidget {
     this.enabled = true,
     this.onChanged,
     this.inputFormatters,
+    this.fillColor, // Added to constructor
+    this.textStyle, // Added to constructor
+    this.hintStyle, // Added to constructor
   }) : super(key: key);
 
   @override
@@ -37,13 +43,14 @@ class CustomTextField extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: AppTheme.bodyStyle.copyWith(
-            fontWeight: FontWeight.w600,
+        if (label != null) // Only show label if provided
+          Text(
+            label!,
+            style: AppTheme.bodyStyle.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
           ),
-        ),
-        const SizedBox(height: 8),
+        if (label != null) const SizedBox(height: 8), // Only add spacing if label exists
         TextFormField(
           controller: controller,
           validator: validator,
@@ -53,11 +60,15 @@ class CustomTextField extends StatelessWidget {
           enabled: enabled,
           onChanged: onChanged,
           inputFormatters: inputFormatters,
+          style: textStyle, // Apply custom text style
           decoration: InputDecoration(
             hintText: hint,
+            hintStyle: hintStyle, // Apply custom hint style
             prefixIcon: prefixIcon,
             suffixIcon: suffixIcon,
             errorMaxLines: 2,
+            fillColor: fillColor, // Apply custom fill color
+            filled: fillColor != null, // Enable fill when fillColor is provided
           ),
         ),
       ],

@@ -247,7 +247,7 @@ class _WorkaroundSignupScreenState extends State<WorkaroundSignupScreen> {
                   
                   CustomTextField(
                     label: 'Téléphone (optionnel)',
-                    hint: '+225 00 00 00 00',
+                    hint: '+226 00 00 00 00',
                     controller: _phoneController,
                     keyboardType: TextInputType.phone,
                     prefixIcon: const Icon(Icons.phone),

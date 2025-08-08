@@ -17,6 +17,10 @@ import 'package:accident_management4/screens/client/client_register_screen.dart'
 import 'package:accident_management4/screens/client/client_biometric_screen.dart';
 import 'package:accident_management4/screens/client/client_confirmation_screen.dart';
 import 'package:accident_management4/screens/client/client_people_list_screen.dart';
+import 'package:accident_management4/screens/client/profile_completion_screen.dart';
+import 'package:accident_management4/screens/client/emergency_contacts_screen.dart';
+import 'package:accident_management4/screens/client/client_profile_screen.dart';
+import 'package:accident_management4/screens/client/medical_info_screen.dart';
 
 // Admin screens
 import 'package:accident_management4/screens/admin/admin_dashboard_screen.dart';
@@ -69,6 +73,18 @@ class MyApp extends StatelessWidget {
         ),
         AppConstants.clientPeopleListRoute: (context) => const ClientAuthGuard(
           child: ClientPeopleListScreen(),
+        ),
+        '/client/profile-completion': (context) => const ClientAuthGuard(
+          child: ProfileCompletionScreen(),
+        ),
+        '/client/emergency-contacts': (context) => const ClientAuthGuard(
+          child: EmergencyContactsScreen(),
+        ),
+        '/client/profile': (context) => const ClientAuthGuard(
+          child: ClientProfileScreen(),
+        ),
+        '/client/medical-info': (context) => const ClientAuthGuard(
+          child: MedicalInfoScreen(),
         ),
         
         // Admin routes (protected with AdminAuthGuard)

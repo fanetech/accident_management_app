@@ -21,7 +21,7 @@ class AppConstants {
   
   // Shared Routes
   static const String settingsRoute = '/settings';
-  static const String profileRoute = '/profile';
+  static const String profileRoute = '/client/profile';
   
   // Firebase Collections
   static const String usersCollection = 'users';

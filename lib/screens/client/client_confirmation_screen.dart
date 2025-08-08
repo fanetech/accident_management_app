@@ -4,7 +4,6 @@ import 'package:accident_management4/core/theme/app_theme.dart';
 import 'package:accident_management4/core/constants/app_constants.dart';
 import 'package:accident_management4/widgets/custom_button.dart';
 import 'package:accident_management4/models/person_model.dart';
-import 'package:uuid/uuid.dart';
 
 class ClientConfirmationScreen extends StatefulWidget {
   const ClientConfirmationScreen({Key? key}) : super(key: key);
@@ -22,20 +21,20 @@ class _ClientConfirmationScreenState extends State<ClientConfirmationScreen>
   
   Map<String, dynamic>? _personData;
   String _generatedId = '';
-  bool _isSaving = false;
 
   @override
   void initState() {
     super.initState();
     _setupAnimations();
-    _generateId();
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     _personData = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
-    _saveData();
+    if (_personData != null) {
+      _generatedId = _personData!['personId'] ?? '';
+    }
   }
 
   void _setupAnimations() {
@@ -61,30 +60,9 @@ class _ClientConfirmationScreenState extends State<ClientConfirmationScreen>
     ));
 
     _animationController.forward();
-  }
-
-  void _generateId() {
-    // Générer un ID unique pour la personne
-    final uuid = const Uuid();
-    _generatedId = 'ACC-${DateTime.now().year}-${uuid.v4().substring(0, 8).toUpperCase()}';
-  }
-
-  Future<void> _saveData() async {
-    setState(() => _isSaving = true);
-
-    try {
-      // TODO: Sauvegarder les données dans Firebase
-      await Future.delayed(const Duration(seconds: 2)); // Simulation
-      
-      HapticFeedback.mediumImpact();
-      _showSuccessSnackBar(AppConstants.registrationSuccessMessage);
-    } catch (e) {
-      _showErrorSnackBar(AppConstants.genericErrorMessage);
-    } finally {
-      if (mounted) {
-        setState(() => _isSaving = false);
-      }
-    }
+    
+    // Haptic feedback for success
+    HapticFeedback.mediumImpact();
   }
 
   @override
@@ -96,17 +74,18 @@ class _ClientConfirmationScreenState extends State<ClientConfirmationScreen>
   void _showSuccessSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message),
+        content: Row(
+          children: [
+            const Icon(Icons.check_circle, color: Colors.white),
+            const SizedBox(width: 12),
+            Text(message),
+          ],
+        ),
         backgroundColor: AppTheme.successColor,
-      ),
-    );
-  }
-
-  void _showErrorSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: AppTheme.errorColor,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
       ),
     );
   }
@@ -114,9 +93,39 @@ class _ClientConfirmationScreenState extends State<ClientConfirmationScreen>
   @override
   Widget build(BuildContext context) {
     if (_personData == null) {
-      return const Scaffold(
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Erreur'),
+          backgroundColor: AppTheme.errorColor,
+        ),
         body: Center(
-          child: Text('Erreur: Données manquantes'),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.error_outline,
+                size: 80,
+                color: AppTheme.errorColor,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Données manquantes',
+                style: AppTheme.headingStyle,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Les informations de la personne n\'ont pas été trouvées',
+                style: AppTheme.bodyStyle,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              CustomButton(
+                text: 'Retour',
+                onPressed: () => Navigator.pop(context),
+                icon: Icons.arrow_back,
+              ),
+            ],
+          ),
         ),
       );
     }
@@ -124,9 +133,10 @@ class _ClientConfirmationScreenState extends State<ClientConfirmationScreen>
     return Scaffold(
       backgroundColor: AppTheme.backgroundColor,
       appBar: AppBar(
-        title: const Text('Confirmation'),
-        backgroundColor: AppTheme.clientModuleColor,
+        title: const Text('Enregistrement réussi'),
+        backgroundColor: AppTheme.successColor,
         automaticallyImplyLeading: false,
+        elevation: 0,
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -140,13 +150,17 @@ class _ClientConfirmationScreenState extends State<ClientConfirmationScreen>
                   width: 120,
                   height: 120,
                   decoration: BoxDecoration(
-                    color: AppTheme.successColor,
+                    color: AppTheme.successColor.withOpacity(0.1),
                     shape: BoxShape.circle,
+                    border: Border.all(
+                      color: AppTheme.successColor,
+                      width: 3,
+                    ),
                   ),
-                  child: const Icon(
-                    Icons.check,
-                    color: Colors.white,
-                    size: 60,
+                  child: Icon(
+                    Icons.check_circle,
+                    color: AppTheme.successColor,
+                    size: 80,
                   ),
                 ),
               ),
@@ -157,14 +171,15 @@ class _ClientConfirmationScreenState extends State<ClientConfirmationScreen>
                 child: Column(
                   children: [
                     Text(
-                      'Enregistrement réussi !',
+                      'Enregistrement terminé !',
                       style: AppTheme.headingStyle.copyWith(
                         color: AppTheme.successColor,
+                        fontSize: 24,
                       ),
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      'Les informations ont été enregistrées avec succès',
+                      'Les informations et les empreintes digitales ont été sauvegardées avec succès dans la base de données Firebase.',
                       style: AppTheme.bodyStyle,
                       textAlign: TextAlign.center,
                     ),
@@ -177,6 +192,9 @@ class _ClientConfirmationScreenState extends State<ClientConfirmationScreen>
               const SizedBox(height: 24),
               // Generated ID
               _buildGeneratedId(),
+              const SizedBox(height: 24),
+              // Statistics card
+              _buildStatisticsCard(),
               const SizedBox(height: 40),
               // Action buttons
               _buildActionButtons(),
@@ -191,59 +209,83 @@ class _ClientConfirmationScreenState extends State<ClientConfirmationScreen>
     return FadeTransition(
       opacity: _fadeAnimation,
       child: Card(
+        elevation: 2,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
         child: Padding(
-          padding: const EdgeInsets.all(16.0),
+          padding: const EdgeInsets.all(20.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
-                  Icon(
-                    Icons.person,
-                    color: AppTheme.clientModuleColor,
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppTheme.clientModuleColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      Icons.person,
+                      color: AppTheme.clientModuleColor,
+                      size: 24,
+                    ),
                   ),
                   const SizedBox(width: 12),
                   Text(
-                    'Résumé des informations',
-                    style: AppTheme.subheadingStyle,
+                    'Informations enregistrées',
+                    style: AppTheme.subheadingStyle.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ],
               ),
-              const Divider(height: 24),
-              _buildInfoRow('Nom complet',
-                  '${_personData!['firstName']} ${_personData!['lastName']}'),
-              const SizedBox(height: 12),
+              const Divider(height: 32),
+              _buildInfoRow(
+                'Nom complet',
+                '${_personData!['firstName']} ${_personData!['lastName']}',
+                Icons.badge,
+              ),
+              const SizedBox(height: 16),
               Text(
-                'Contacts d\'urgence:',
+                'Contacts d\'urgence',
                 style: AppTheme.bodyStyle.copyWith(
                   fontWeight: FontWeight.w600,
+                  color: AppTheme.textSecondaryColor,
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
               ...(_personData!['emergencyContacts'] as List<EmergencyContact>)
                   .asMap()
                   .entries
                   .map((entry) {
                 final index = entry.key;
                 final contact = entry.value;
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 8.0),
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[50],
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.grey[200]!),
+                  ),
                   child: Row(
                     children: [
                       Container(
-                        width: 24,
-                        height: 24,
+                        width: 32,
+                        height: 32,
                         decoration: BoxDecoration(
-                          color: AppTheme.clientModuleColor.withOpacity(0.2),
+                          color: AppTheme.clientModuleColor,
                           shape: BoxShape.circle,
                         ),
                         child: Center(
                           child: Text(
                             '${index + 1}',
-                            style: TextStyle(
-                              color: AppTheme.clientModuleColor,
+                            style: const TextStyle(
+                              color: Colors.white,
                               fontWeight: FontWeight.bold,
-                              fontSize: 12,
+                              fontSize: 14,
                             ),
                           ),
                         ),
@@ -256,12 +298,26 @@ class _ClientConfirmationScreenState extends State<ClientConfirmationScreen>
                             Text(
                               contact.name,
                               style: AppTheme.bodyStyle.copyWith(
-                                fontWeight: FontWeight.w500,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
-                            Text(
-                              '${contact.relationship} - ${_maskPhoneNumber(contact.phoneNumber)}',
-                              style: AppTheme.captionStyle,
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                Icon(Icons.phone, size: 14, color: Colors.grey[600]),
+                                const SizedBox(width: 4),
+                                Text(
+                                  _maskPhoneNumber(contact.phoneNumber),
+                                  style: AppTheme.captionStyle,
+                                ),
+                                const SizedBox(width: 12),
+                                Icon(Icons.family_restroom, size: 14, color: Colors.grey[600]),
+                                const SizedBox(width: 4),
+                                Text(
+                                  contact.relationship,
+                                  style: AppTheme.captionStyle,
+                                ),
+                              ],
                             ),
                           ],
                         ),
@@ -270,22 +326,45 @@ class _ClientConfirmationScreenState extends State<ClientConfirmationScreen>
                   ),
                 );
               }).toList(),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Icon(
-                    Icons.fingerprint,
-                    color: AppTheme.successColor,
-                    size: 20,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Empreintes digitales capturées',
-                    style: AppTheme.captionStyle.copyWith(
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppTheme.successColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppTheme.successColor.withOpacity(0.3)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.fingerprint,
                       color: AppTheme.successColor,
+                      size: 24,
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Empreintes digitales capturées',
+                            style: AppTheme.bodyStyle.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: AppTheme.successColor,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '✓ Pouce gauche  ✓ Auriculaire droit',
+                            style: AppTheme.captionStyle.copyWith(
+                              color: AppTheme.successColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
@@ -294,24 +373,26 @@ class _ClientConfirmationScreenState extends State<ClientConfirmationScreen>
     );
   }
 
-  Widget _buildInfoRow(String label, String value) {
+  Widget _buildInfoRow(String label, String value, IconData icon) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SizedBox(
-          width: 120,
-          child: Text(
-            '$label:',
-            style: AppTheme.bodyStyle.copyWith(
-              color: AppTheme.textSecondaryColor,
-            ),
-          ),
-        ),
+        Icon(icon, size: 20, color: AppTheme.textSecondaryColor),
+        const SizedBox(width: 8),
         Expanded(
-          child: Text(
-            value,
-            style: AppTheme.bodyStyle.copyWith(
-              fontWeight: FontWeight.w600,
+          child: RichText(
+            text: TextSpan(
+              style: AppTheme.bodyStyle,
+              children: [
+                TextSpan(
+                  text: '$label: ',
+                  style: TextStyle(color: AppTheme.textSecondaryColor),
+                ),
+                TextSpan(
+                  text: value,
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ],
             ),
           ),
         ),
@@ -323,32 +404,50 @@ class _ClientConfirmationScreenState extends State<ClientConfirmationScreen>
     return FadeTransition(
       opacity: _fadeAnimation,
       child: Card(
-        color: AppTheme.clientModuleColor.withOpacity(0.1),
+        color: AppTheme.clientModuleColor.withOpacity(0.05),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(
+            color: AppTheme.clientModuleColor.withOpacity(0.2),
+          ),
+        ),
         child: Padding(
-          padding: const EdgeInsets.all(16.0),
+          padding: const EdgeInsets.all(20.0),
           child: Column(
             children: [
+              Icon(
+                Icons.qr_code,
+                color: AppTheme.clientModuleColor,
+                size: 32,
+              ),
+              const SizedBox(height: 12),
               Text(
-                'Identifiant généré',
-                style: AppTheme.bodyStyle,
+                'Identifiant unique',
+                style: AppTheme.bodyStyle.copyWith(
+                  color: AppTheme.textSecondaryColor,
+                ),
               ),
               const SizedBox(height: 8),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(
-                    _generatedId,
+                  SelectableText(
+                    _generatedId.isNotEmpty ? _generatedId : 'ID-${DateTime.now().millisecondsSinceEpoch}',
                     style: AppTheme.headingStyle.copyWith(
                       color: AppTheme.clientModuleColor,
-                      fontSize: 20,
+                      fontSize: 18,
+                      fontFamily: 'monospace',
                     ),
                   ),
+                  const SizedBox(width: 8),
                   IconButton(
-                    icon: const Icon(Icons.copy),
+                    icon: Icon(Icons.copy, color: AppTheme.clientModuleColor),
                     onPressed: () {
-                      Clipboard.setData(ClipboardData(text: _generatedId));
-                      _showSuccessSnackBar('ID copié dans le presse-papiers');
+                      final id = _generatedId.isNotEmpty ? _generatedId : 'ID-${DateTime.now().millisecondsSinceEpoch}';
+                      Clipboard.setData(ClipboardData(text: id));
+                      _showSuccessSnackBar('Identifiant copié dans le presse-papiers');
                     },
+                    tooltip: 'Copier l\'identifiant',
                   ),
                 ],
               ),
@@ -359,6 +458,59 @@ class _ClientConfirmationScreenState extends State<ClientConfirmationScreen>
     );
   }
 
+  Widget _buildStatisticsCard() {
+    return FadeTransition(
+      opacity: _fadeAnimation,
+      child: Card(
+        elevation: 1,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _buildStatItem(Icons.people, '3', 'Contacts'),
+              Container(
+                height: 40,
+                width: 1,
+                color: Colors.grey[300],
+              ),
+              _buildStatItem(Icons.fingerprint, '2', 'Empreintes'),
+              Container(
+                height: 40,
+                width: 1,
+                color: Colors.grey[300],
+              ),
+              _buildStatItem(Icons.check_circle, '100%', 'Complet'),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatItem(IconData icon, String value, String label) {
+    return Column(
+      children: [
+        Icon(icon, color: AppTheme.clientModuleColor, size: 24),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: AppTheme.headingStyle.copyWith(
+            fontSize: 18,
+            color: AppTheme.clientModuleColor,
+          ),
+        ),
+        Text(
+          label,
+          style: AppTheme.captionStyle,
+        ),
+      ],
+    );
+  }
+
   Widget _buildActionButtons() {
     return FadeTransition(
       opacity: _fadeAnimation,
@@ -366,30 +518,40 @@ class _ClientConfirmationScreenState extends State<ClientConfirmationScreen>
         children: [
           CustomButton(
             text: 'Nouvel enregistrement',
-            onPressed: _isSaving
-                ? null
-                : () {
-                    Navigator.pushReplacementNamed(
-                      context,
-                      AppConstants.clientRegisterRoute,
-                    );
-                  },
+            onPressed: () {
+              Navigator.pushReplacementNamed(
+                context,
+                AppConstants.clientRegisterRoute,
+              );
+            },
             icon: Icons.person_add,
           ),
           const SizedBox(height: 12),
           CustomButton(
-            text: 'Retour au tableau de bord',
-            onPressed: _isSaving
-                ? null
-                : () {
-                    Navigator.pushNamedAndRemoveUntil(
-                      context,
-                      AppConstants.clientDashboardRoute,
-                      (route) => false,
-                    );
-                  },
+            text: 'Voir la liste des personnes',
+            onPressed: () {
+              Navigator.pushReplacementNamed(
+                context,
+                AppConstants.clientPeopleListRoute,
+              );
+            },
             type: ButtonType.outline,
-            icon: Icons.dashboard,
+            icon: Icons.list_alt,
+          ),
+          const SizedBox(height: 12),
+          TextButton.icon(
+            onPressed: () {
+              Navigator.pushNamedAndRemoveUntil(
+                context,
+                AppConstants.clientDashboardRoute,
+                (route) => false,
+              );
+            },
+            icon: const Icon(Icons.dashboard),
+            label: const Text('Retour au tableau de bord'),
+            style: TextButton.styleFrom(
+              foregroundColor: AppTheme.textSecondaryColor,
+            ),
           ),
         ],
       ),
@@ -398,9 +560,9 @@ class _ClientConfirmationScreenState extends State<ClientConfirmationScreen>
 
   String _maskPhoneNumber(String phoneNumber) {
     if (phoneNumber.length < 6) return phoneNumber;
-    final start = phoneNumber.substring(0, 4);
+    final start = phoneNumber.substring(0, 6);
     final end = phoneNumber.substring(phoneNumber.length - 2);
-    final masked = '*' * (phoneNumber.length - 6);
+    final masked = '*' * (phoneNumber.length - 8);
     return '$start$masked$end';
   }
 }

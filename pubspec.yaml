@@ -46,6 +46,9 @@ dependencies:
   # Crypto for password hashing in workaround
   crypto: ^3.0.3
   
+  # Date formatting
+  intl: ^0.18.1
+  
   # State Management
   provider: ^6.1.1
   
@@ -79,6 +82,9 @@ dependencies:
   # Location - Using alternative package
   location: ^5.0.3
   geocoding: ^2.1.1
+  
+  # Device Info
+  device_info_plus: ^9.1.0
 
 dev_dependencies:
   flutter_test:

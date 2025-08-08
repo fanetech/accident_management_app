@@ -3,6 +3,10 @@ import 'package:flutter/services.dart';
 import 'package:accident_management4/core/theme/app_theme.dart';
 import 'package:accident_management4/core/constants/app_constants.dart';
 import 'package:accident_management4/widgets/custom_button.dart';
+import 'package:accident_management4/services/person_service.dart';
+import 'package:accident_management4/models/person_model.dart';
+import 'dart:convert';
+import 'dart:math';
 
 class ClientBiometricScreen extends StatefulWidget {
   const ClientBiometricScreen({Key? key}) : super(key: key);
@@ -22,6 +26,12 @@ class _ClientBiometricScreenState extends State<ClientBiometricScreen>
   int _captureQuality = 0;
   String _currentFinger = 'left_thumb';
   Map<String, dynamic>? _personData;
+  
+  // Store biometric templates
+  Map<String, dynamic> _leftThumbData = {};
+  Map<String, dynamic> _rightPinkyData = {};
+  
+  bool _isSaving = false;
 
   @override
   void initState() {
@@ -59,6 +69,13 @@ class _ClientBiometricScreenState extends State<ClientBiometricScreen>
     super.dispose();
   }
 
+  // Generate a mock biometric template (in real app, this would come from the sensor)
+  String _generateBiometricTemplate() {
+    final random = Random();
+    final bytes = List<int>.generate(512, (i) => random.nextInt(256));
+    return base64.encode(bytes);
+  }
+
   Future<void> _startCapture() async {
     setState(() {
       _isCapturing = true;
@@ -75,6 +92,7 @@ class _ClientBiometricScreenState extends State<ClientBiometricScreen>
       }
     }
 
+    // Check quality threshold
     if (_captureQuality >= AppConstants.biometricQualityThreshold) {
       HapticFeedback.mediumImpact();
       _onCaptureSuccess();
@@ -84,10 +102,16 @@ class _ClientBiometricScreenState extends State<ClientBiometricScreen>
   }
 
   void _onCaptureSuccess() {
+    final template = _generateBiometricTemplate();
+    
     if (_currentFinger == 'left_thumb') {
       setState(() {
         _leftThumbCaptured = true;
         _isCapturing = false;
+        _leftThumbData = {
+          'template': template,
+          'quality': _captureQuality,
+        };
         _currentFinger = 'right_pinky';
       });
       
@@ -96,18 +120,18 @@ class _ClientBiometricScreenState extends State<ClientBiometricScreen>
       setState(() {
         _rightPinkyCaptured = true;
         _isCapturing = false;
+        _rightPinkyData = {
+          'template': template,
+          'quality': _captureQuality,
+        };
       });
       
       _showSuccessSnackBar('Auriculaire droit capturé avec succès !');
       
-      // Si les deux empreintes sont capturées, naviguer vers la confirmation
+      // Si les deux empreintes sont capturées, sauvegarder automatiquement
       if (_leftThumbCaptured && _rightPinkyCaptured) {
-        Future.delayed(const Duration(seconds: 1), () {
-          Navigator.pushReplacementNamed(
-            context,
-            AppConstants.clientConfirmationRoute,
-            arguments: _personData,
-          );
+        Future.delayed(const Duration(milliseconds: 500), () {
+          _saveToFirebase();
         });
       }
     }
@@ -121,11 +145,70 @@ class _ClientBiometricScreenState extends State<ClientBiometricScreen>
     _showErrorSnackBar('Échec de la capture. Veuillez réessayer.');
   }
 
+  Future<void> _saveToFirebase() async {
+    if (_personData == null) {
+      _showErrorSnackBar('Données de la personne manquantes');
+      return;
+    }
+
+    setState(() {
+      _isSaving = true;
+    });
+
+    try {
+      final PersonService personService = _personData!['service'] ?? PersonService();
+      final emergencyContacts = _personData!['emergencyContacts'] as List<EmergencyContact>;
+      
+      // Save person with biometrics to Firebase
+      final personId = await personService.createPersonWithBiometrics(
+        firstName: _personData!['firstName'],
+        lastName: _personData!['lastName'],
+        emergencyContacts: emergencyContacts,
+        leftThumbData: _leftThumbData,
+        rightPinkyData: _rightPinkyData,
+      );
+
+      if (mounted) {
+        _showSuccessSnackBar('Enregistrement réussi !');
+        
+        // Navigate to confirmation screen
+        Navigator.pushReplacementNamed(
+          context,
+          AppConstants.clientConfirmationRoute,
+          arguments: {
+            'personId': personId,
+            'firstName': _personData!['firstName'],
+            'lastName': _personData!['lastName'],
+            'emergencyContacts': emergencyContacts,
+          },
+        );
+      }
+    } catch (e) {
+      _showErrorSnackBar('Erreur lors de l\'enregistrement: ${e.toString()}');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+        });
+      }
+    }
+  }
+
   void _showSuccessSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message),
+        content: Row(
+          children: [
+            const Icon(Icons.check_circle, color: Colors.white),
+            const SizedBox(width: 12),
+            Expanded(child: Text(message)),
+          ],
+        ),
         backgroundColor: AppTheme.successColor,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
       ),
     );
   }
@@ -133,42 +216,125 @@ class _ClientBiometricScreenState extends State<ClientBiometricScreen>
   void _showErrorSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message),
+        content: Row(
+          children: [
+            const Icon(Icons.error_outline, color: Colors.white),
+            const SizedBox(width: 12),
+            Expanded(child: Text(message)),
+          ],
+        ),
         backgroundColor: AppTheme.errorColor,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final personName = _personData != null 
+        ? '${_personData!['firstName']} ${_personData!['lastName']}'
+        : 'Personne';
+
     return Scaffold(
       backgroundColor: AppTheme.backgroundColor,
       appBar: AppBar(
         title: const Text('Capture des empreintes'),
         backgroundColor: AppTheme.clientModuleColor,
+        elevation: 0,
       ),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            children: [
-              // Progress indicator
-              _buildProgressIndicator(),
-              const SizedBox(height: 32),
-              // Instructions
-              _buildInstructions(),
-              const SizedBox(height: 40),
-              // Scanner area
-              Expanded(
+        child: Stack(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                children: [
+                  // Person info card
+                  Card(
+                    color: AppTheme.clientModuleColor.withOpacity(0.05),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: BorderSide(
+                        color: AppTheme.clientModuleColor.withOpacity(0.2),
+                      ),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.person,
+                            color: AppTheme.clientModuleColor,
+                            size: 24,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Enregistrement pour:',
+                                  style: AppTheme.captionStyle,
+                                ),
+                                Text(
+                                  personName,
+                                  style: AppTheme.subheadingStyle.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  // Progress indicator
+                  _buildProgressIndicator(),
+                  const SizedBox(height: 32),
+                  // Instructions
+                  _buildInstructions(),
+                  const SizedBox(height: 40),
+                  // Scanner area
+                  Expanded(
+                    child: Center(
+                      child: _buildScannerArea(),
+                    ),
+                  ),
+                  const SizedBox(height: 40),
+                  // Action button
+                  _buildActionButton(),
+                ],
+              ),
+            ),
+            // Loading overlay
+            if (_isSaving)
+              Container(
+                color: Colors.black54,
                 child: Center(
-                  child: _buildScannerArea(),
+                  child: Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const CircularProgressIndicator(),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Enregistrement en cours...',
+                            style: AppTheme.subheadingStyle,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
               ),
-              const SizedBox(height: 40),
-              // Action button
-              _buildActionButton(),
-            ],
-          ),
+          ],
         ),
       ),
     );
@@ -180,14 +346,36 @@ class _ClientBiometricScreenState extends State<ClientBiometricScreen>
         Expanded(
           child: Column(
             children: [
-              Icon(
-                Icons.fingerprint,
-                color: _leftThumbCaptured
-                    ? AppTheme.successColor
-                    : (_currentFinger == 'left_thumb' && _isCapturing)
-                        ? AppTheme.clientModuleColor
-                        : Colors.grey,
-                size: 40,
+              Stack(
+                alignment: Alignment.center,
+                children: [
+                  Icon(
+                    Icons.fingerprint,
+                    color: _leftThumbCaptured
+                        ? AppTheme.successColor
+                        : (_currentFinger == 'left_thumb' && _isCapturing)
+                            ? AppTheme.clientModuleColor
+                            : Colors.grey,
+                    size: 40,
+                  ),
+                  if (_leftThumbCaptured)
+                    Positioned(
+                      right: 0,
+                      bottom: 0,
+                      child: Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: const BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          Icons.check_circle,
+                          color: AppTheme.successColor,
+                          size: 16,
+                        ),
+                      ),
+                    ),
+                ],
               ),
               const SizedBox(height: 8),
               Text(
@@ -199,33 +387,52 @@ class _ClientBiometricScreenState extends State<ClientBiometricScreen>
                   fontWeight: _currentFinger == 'left_thumb'
                       ? FontWeight.bold
                       : FontWeight.normal,
+                  fontSize: 12,
                 ),
               ),
-              if (_leftThumbCaptured)
-                const Icon(
-                  Icons.check_circle,
-                  color: AppTheme.successColor,
-                  size: 20,
-                ),
             ],
           ),
         ),
-        Container(
-          width: 40,
-          height: 2,
-          color: _leftThumbCaptured ? AppTheme.successColor : Colors.grey[300],
+        Expanded(
+          child: Container(
+            height: 2,
+            margin: const EdgeInsets.only(bottom: 20),
+            color: _leftThumbCaptured ? AppTheme.successColor : Colors.grey[300],
+          ),
         ),
         Expanded(
           child: Column(
             children: [
-              Icon(
-                Icons.fingerprint,
-                color: _rightPinkyCaptured
-                    ? AppTheme.successColor
-                    : (_currentFinger == 'right_pinky' && _isCapturing)
-                        ? AppTheme.clientModuleColor
-                        : Colors.grey,
-                size: 40,
+              Stack(
+                alignment: Alignment.center,
+                children: [
+                  Icon(
+                    Icons.fingerprint,
+                    color: _rightPinkyCaptured
+                        ? AppTheme.successColor
+                        : (_currentFinger == 'right_pinky' && _isCapturing)
+                            ? AppTheme.clientModuleColor
+                            : Colors.grey,
+                    size: 40,
+                  ),
+                  if (_rightPinkyCaptured)
+                    Positioned(
+                      right: 0,
+                      bottom: 0,
+                      child: Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: const BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          Icons.check_circle,
+                          color: AppTheme.successColor,
+                          size: 16,
+                        ),
+                      ),
+                    ),
+                ],
               ),
               const SizedBox(height: 8),
               Text(
@@ -237,14 +444,9 @@ class _ClientBiometricScreenState extends State<ClientBiometricScreen>
                   fontWeight: _currentFinger == 'right_pinky'
                       ? FontWeight.bold
                       : FontWeight.normal,
+                  fontSize: 12,
                 ),
               ),
-              if (_rightPinkyCaptured)
-                const Icon(
-                  Icons.check_circle,
-                  color: AppTheme.successColor,
-                  size: 20,
-                ),
             ],
           ),
         ),
@@ -258,23 +460,28 @@ class _ClientBiometricScreenState extends State<ClientBiometricScreen>
         : 'votre auriculaire droit';
 
     return Card(
-      color: AppTheme.clientModuleColor.withOpacity(0.1),
+      color: AppTheme.infoColor.withOpacity(0.1),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
             Icon(
               Icons.info_outline,
-              color: AppTheme.clientModuleColor,
-              size: 32,
+              color: AppTheme.infoColor,
+              size: 24,
             ),
             const SizedBox(height: 12),
             Text(
               'Placez $fingerText sur le capteur',
-              style: AppTheme.subheadingStyle,
+              style: AppTheme.bodyStyle.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 4),
             Text(
               'Maintenez votre doigt immobile pendant la capture',
               style: AppTheme.captionStyle,
@@ -299,11 +506,17 @@ class _ClientBiometricScreenState extends State<ClientBiometricScreen>
             borderRadius: BorderRadius.circular(20),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.1),
-                blurRadius: 10,
-                offset: const Offset(0, 5),
+                color: AppTheme.clientModuleColor.withOpacity(0.1),
+                blurRadius: 20,
+                offset: const Offset(0, 10),
               ),
             ],
+            border: Border.all(
+              color: _isCapturing 
+                  ? AppTheme.clientModuleColor 
+                  : Colors.grey[300]!,
+              width: 2,
+            ),
           ),
         ),
         // Animated fingerprint
@@ -353,6 +566,7 @@ class _ClientBiometricScreenState extends State<ClientBiometricScreen>
                           ? AppTheme.successColor
                           : AppTheme.warningColor,
                     ),
+                    minHeight: 6,
                   ),
                 ),
               ],
@@ -365,16 +579,11 @@ class _ClientBiometricScreenState extends State<ClientBiometricScreen>
   Widget _buildActionButton() {
     if (_leftThumbCaptured && _rightPinkyCaptured) {
       return CustomButton(
-        text: 'Terminer',
-        onPressed: () {
-          Navigator.pushReplacementNamed(
-            context,
-            AppConstants.clientConfirmationRoute,
-            arguments: _personData,
-          );
-        },
+        text: 'Enregistrer',
+        onPressed: _isSaving ? null : _saveToFirebase,
         type: ButtonType.success,
-        icon: Icons.check,
+        icon: Icons.save,
+        isLoading: _isSaving,
       );
     }
 
