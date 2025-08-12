@@ -3,6 +3,9 @@ import 'package:accident_management4/core/theme/app_theme.dart';
 import 'package:accident_management4/core/constants/app_constants.dart';
 import 'package:accident_management4/widgets/custom_button.dart';
 import 'package:accident_management4/services/auth_service.dart';
+import 'package:accident_management4/services/biometric_scan_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({Key? key}) : super(key: key);
@@ -13,9 +16,16 @@ class AdminDashboardScreen extends StatefulWidget {
 
 class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   final AuthService _authService = AuthService();
-  int _totalScans = 0;
-  int _successfulScans = 0;
-  int _todayScans = 0;
+  final BiometricScanService _biometricService = BiometricScanService();
+  
+  Map<String, dynamic> _statistics = {
+    'total': 0,
+    'successful': 0,
+    'failed': 0,
+    'today': 0,
+    'successRate': '0.0',
+  };
+  
   bool _isLoading = true;
   String _adminName = 'Administrateur';
 
@@ -27,6 +37,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   Future<void> _loadDashboardData() async {
     try {
+      setState(() {
+        _isLoading = true;
+      });
+
       // Get current admin name
       final user = _authService.currentUser;
       if (user != null) {
@@ -39,19 +53,33 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         }
       }
       
-      // TODO: Charger les vraies statistiques depuis Firebase
-      await Future.delayed(const Duration(seconds: 1)); // Simulation
+      // Load real statistics from Firebase
+      final stats = await _biometricService.getScanStatistics();
       
       setState(() {
-        _totalScans = 156;
-        _successfulScans = 142;
-        _todayScans = 8;
+        _statistics = stats;
         _isLoading = false;
       });
     } catch (e) {
+      print('Error loading dashboard data: $e');
       setState(() {
         _isLoading = false;
       });
+    }
+  }
+
+  String _getTimeAgo(DateTime dateTime) {
+    final now = DateTime.now();
+    final difference = now.difference(dateTime);
+
+    if (difference.inDays > 0) {
+      return 'Il y a ${difference.inDays} jour${difference.inDays > 1 ? 's' : ''}';
+    } else if (difference.inHours > 0) {
+      return 'Il y a ${difference.inHours} heure${difference.inHours > 1 ? 's' : ''}';
+    } else if (difference.inMinutes > 0) {
+      return 'Il y a ${difference.inMinutes} minute${difference.inMinutes > 1 ? 's' : ''}';
+    } else {
+      return 'À l\'instant';
     }
   }
 
@@ -63,12 +91,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         title: const Text('Espace Admin'),
         backgroundColor: AppTheme.adminModuleColor,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications),
-            onPressed: () {
-              // TODO: Afficher les notifications
-            },
-          ),
           IconButton(
             icon: const Icon(Icons.person),
             onPressed: () {
@@ -93,7 +115,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Message d'urgence
+                    // Welcome message
                     Card(
                       color: AppTheme.adminModuleColor.withOpacity(0.1),
                       child: Padding(
@@ -111,12 +133,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    'Mode Urgence',
+                                    'Bonjour, $_adminName',
                                     style: AppTheme.subheadingStyle,
                                   ),
                                   const SizedBox(height: 4),
                                   Text(
-                                    'Prêt pour l\'identification d\'urgence',
+                                    'Système d\'identification d\'urgence actif',
                                     style: AppTheme.captionStyle,
                                   ),
                                 ],
@@ -127,35 +149,48 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       ),
                     ),
                     const SizedBox(height: 24),
-                    // Statistiques du jour
+                    // Statistics
                     Text(
-                      'Statistiques du jour',
+                      'Statistiques',
                       style: AppTheme.subheadingStyle,
                     ),
                     const SizedBox(height: 16),
-                    Row(
+                    GridView.count(
+                      crossAxisCount: 2,
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      mainAxisSpacing: 16,
+                      crossAxisSpacing: 16,
+                      childAspectRatio: 1.5,
                       children: [
-                        Expanded(
-                          child: _buildStatCard(
-                            'Scans aujourd\'hui',
-                            _todayScans.toString(),
-                            Icons.fingerprint,
-                            AppTheme.primaryColor,
-                          ),
+                        _buildStatCard(
+                          'Aujourd\'hui',
+                          _statistics['today'].toString(),
+                          Icons.today,
+                          AppTheme.primaryColor,
                         ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: _buildStatCard(
-                            'Taux de réussite',
-                            '${((_successfulScans / _totalScans) * 100).toStringAsFixed(1)}%',
-                            Icons.check_circle,
-                            AppTheme.successColor,
-                          ),
+                        _buildStatCard(
+                          'Taux de succès',
+                          '${_statistics['successRate']}%',
+                          Icons.check_circle,
+                          AppTheme.successColor,
+                        ),
+                        _buildStatCard(
+                          'Total scans',
+                          _statistics['total'].toString(),
+                          Icons.fingerprint,
+                          AppTheme.infoColor,
+                        ),
+                        _buildStatCard(
+                          'Cette semaine',
+                          _statistics['thisWeek']?.toString() ?? '0',
+                          Icons.calendar_view_week,
+                          AppTheme.warningColor,
                         ),
                       ],
                     ),
                     const SizedBox(height: 32),
-                    // Actions rapides
+                    // Quick actions
                     Text(
                       'Actions rapides',
                       style: AppTheme.subheadingStyle,
@@ -187,10 +222,24 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       },
                     ),
                     const SizedBox(height: 32),
-                    // Dernières identifications
-                    Text(
-                      'Dernières identifications',
-                      style: AppTheme.subheadingStyle,
+                    // Recent identifications
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Dernières identifications',
+                          style: AppTheme.subheadingStyle,
+                        ),
+                        TextButton(
+                          onPressed: () {
+                            Navigator.pushNamed(
+                              context,
+                              AppConstants.adminHistoryRoute,
+                            );
+                          },
+                          child: const Text('Voir tout'),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 16),
                     _buildRecentScansList(),
@@ -220,20 +269,22 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Icon(icon, color: color, size: 28),
+                Icon(icon, color: color, size: 24),
                 Text(
                   value,
-                  style: AppTheme.headingStyle.copyWith(
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
                     color: color,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 8),
             Text(
               title,
               style: AppTheme.captionStyle,
@@ -279,74 +330,265 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   Widget _buildRecentScansList() {
-    // TODO: Récupérer les vraies données depuis Firebase
-    final recentScans = [
-      {
-        'name': 'Marie Tchuente',
-        'time': 'Il y a 30 minutes',
-        'status': 'success',
-        'contacts': 3,
-      },
-      {
-        'name': 'Paul Kamga',
-        'time': 'Il y a 1 heure',
-        'status': 'success',
-        'contacts': 2,
-      },
-      {
-        'name': 'Inconnu',
-        'time': 'Il y a 2 heures',
-        'status': 'failed',
-        'contacts': 0,
-      },
-    ];
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: _biometricService.getRecentScanLogs(limit: 5),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.all(20.0),
+              child: CircularProgressIndicator(),
+            ),
+          );
+        }
 
-    return Column(
-      children: recentScans.map((scan) {
-        final isSuccess = scan['status'] == 'success';
-        return Card(
-          margin: const EdgeInsets.only(bottom: 8),
-          child: ListTile(
-            leading: CircleAvatar(
-              backgroundColor: isSuccess
-                  ? AppTheme.successColor
-                  : AppTheme.errorColor,
-              child: Icon(
-                isSuccess ? Icons.check : Icons.close,
-                color: Colors.white,
+        if (snapshot.hasError) {
+          return Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.error_outline,
+                    color: AppTheme.errorColor,
+                    size: 48,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Erreur de chargement',
+                    style: AppTheme.captionStyle,
+                  ),
+                ],
               ),
             ),
-            title: Text(scan['name'] as String),
-            subtitle: Text(scan['time'] as String),
-            trailing: isSuccess
-                ? Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
+          );
+        }
+
+        final logs = snapshot.data ?? [];
+
+        if (logs.isEmpty) {
+          return Card(
+            child: Padding(
+              padding: const EdgeInsets.all(32.0),
+              child: Center(
+                child: Column(
+                  children: [
+                    Icon(
+                      Icons.fingerprint,
+                      size: 48,
+                      color: Colors.grey[400],
                     ),
-                    decoration: BoxDecoration(
-                      color: AppTheme.successColor.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Aucune identification récente',
+                      style: AppTheme.captionStyle,
                     ),
-                    child: Text(
-                      '${scan['contacts']} contacts',
-                      style: TextStyle(
-                        color: AppTheme.successColor,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
+                  ],
+                ),
+              ),
+            ),
+          );
+        }
+
+        // Get only successful scans with person info
+        final successfulScans = logs.where((log) => 
+          log['status'] == 'success' && 
+          log['personId'] != null
+        ).take(5).toList();
+
+        if (successfulScans.isEmpty) {
+          // Show all scans if no successful ones
+          return Column(
+            children: logs.take(3).map((log) {
+              final timestamp = (log['timestamp'] as Timestamp?)?.toDate();
+              final status = log['status'] ?? 'unknown';
+              final isSuccess = status == 'success';
+              
+              return Card(
+                margin: const EdgeInsets.only(bottom: 8),
+                child: ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: isSuccess
+                        ? AppTheme.successColor
+                        : AppTheme.errorColor,
+                    child: Icon(
+                      isSuccess ? Icons.check : Icons.close,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                  ),
+                  title: Text(
+                    isSuccess ? 'Identification réussie' : 'Échec du scan',
+                    style: const TextStyle(fontSize: 14),
+                  ),
+                  subtitle: Text(
+                    timestamp != null 
+                        ? _getTimeAgo(timestamp)
+                        : 'Date inconnue',
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                  trailing: Icon(
+                    Icons.chevron_right,
+                    color: Colors.grey[400],
+                    size: 20,
+                  ),
+                  onTap: () {
+                    Navigator.pushNamed(
+                      context,
+                      AppConstants.adminHistoryRoute,
+                    );
+                  },
+                ),
+              );
+            }).toList(),
+          );
+        }
+
+        // Show successful scans with person data
+        return FutureBuilder<List<Map<String, dynamic>>>(
+          future: _loadPersonDetails(successfulScans),
+          builder: (context, personSnapshot) {
+            if (!personSnapshot.hasData) {
+              return Column(
+                children: successfulScans.map((log) {
+                  final timestamp = (log['timestamp'] as Timestamp?)?.toDate();
+                  
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    child: ListTile(
+                      leading: const CircleAvatar(
+                        backgroundColor: AppTheme.successColor,
+                        child: Icon(
+                          Icons.check,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                      ),
+                      title: const Text(
+                        'Chargement...',
+                        style: TextStyle(fontSize: 14),
+                      ),
+                      subtitle: Text(
+                        timestamp != null 
+                            ? _getTimeAgo(timestamp)
+                            : 'Date inconnue',
+                        style: const TextStyle(fontSize: 12),
                       ),
                     ),
-                  )
-                : null,
-            onTap: isSuccess
-                ? () {
-                    // TODO: Naviguer vers les détails
-                  }
-                : null,
-          ),
+                  );
+                }).toList(),
+              );
+            }
+
+            final personsData = personSnapshot.data!;
+            
+            return Column(
+              children: personsData.map((data) {
+                final timestamp = data['timestamp'] as DateTime?;
+                final personName = data['personName'] ?? 'Personne inconnue';
+                final contactsCount = data['contactsCount'] ?? 0;
+                
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  child: ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: AppTheme.successColor,
+                      child: Text(
+                        personName.substring(0, 1).toUpperCase(),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    title: Text(
+                      personName,
+                      style: const TextStyle(fontSize: 14),
+                    ),
+                    subtitle: Text(
+                      timestamp != null 
+                          ? _getTimeAgo(timestamp)
+                          : 'Date inconnue',
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                    trailing: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppTheme.successColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        '$contactsCount contacts',
+                        style: TextStyle(
+                          color: AppTheme.successColor,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    onTap: () {
+                      // Navigate to history for details
+                      Navigator.pushNamed(
+                        context,
+                        AppConstants.adminHistoryRoute,
+                      );
+                    },
+                  ),
+                );
+              }).toList(),
+            );
+          },
         );
-      }).toList(),
+      },
     );
+  }
+
+  Future<List<Map<String, dynamic>>> _loadPersonDetails(List<Map<String, dynamic>> logs) async {
+    List<Map<String, dynamic>> results = [];
+    
+    for (var log in logs) {
+      try {
+        final personId = log['personId'] as String?;
+        if (personId == null) continue;
+        
+        // Try to get person details from persons collection
+        final personDoc = await FirebaseFirestore.instance
+            .collection('persons')
+            .doc(personId)
+            .get();
+        
+        if (personDoc.exists) {
+          final personData = personDoc.data()!;
+          results.add({
+            'personName': '${personData['firstName']} ${personData['lastName']}',
+            'contactsCount': (personData['emergencyContacts'] as List?)?.length ?? 0,
+            'timestamp': (log['timestamp'] as Timestamp?)?.toDate(),
+          });
+        } else {
+          // Try client_profiles collection
+          final profileDoc = await FirebaseFirestore.instance
+              .collection('client_profiles')
+              .doc(personId)
+              .get();
+          
+          if (profileDoc.exists) {
+            final profileData = profileDoc.data()!;
+            results.add({
+              'personName': profileData['displayName'] ?? 'Utilisateur',
+              'contactsCount': (profileData['emergencyContacts'] as List?)?.length ?? 0,
+              'timestamp': (log['timestamp'] as Timestamp?)?.toDate(),
+            });
+          }
+        }
+      } catch (e) {
+        print('Error loading person details: $e');
+      }
+    }
+    
+    return results;
   }
 
   void _showLogoutDialog() {
