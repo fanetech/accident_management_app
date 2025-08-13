@@ -30,6 +30,7 @@ import 'package:accident_management4/screens/admin/admin_dashboard_screen.dart';
 import 'package:accident_management4/screens/admin/admin_scanner_screen.dart';
 import 'package:accident_management4/screens/admin/admin_identified_screen.dart';
 import 'package:accident_management4/screens/admin/admin_history_screen.dart';
+import 'package:accident_management4/screens/admin/admin_profile_screen.dart';
 
 // Auth Guards
 import 'package:accident_management4/widgets/auth/auth_guard.dart';
@@ -178,6 +179,13 @@ class MyApp extends StatelessWidget {
                 return MaterialPageRoute(
                   builder: (context) => const AdminAuthGuard(
                     child: AdminHistoryScreen(),
+                  ),
+                );
+              
+              case '/admin/profile':
+                return MaterialPageRoute(
+                  builder: (context) => const AdminAuthGuard(
+                    child: AdminProfileScreen(),
                   ),
                 );
               

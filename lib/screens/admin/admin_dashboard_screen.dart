@@ -94,7 +94,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           IconButton(
             icon: const Icon(Icons.person),
             onPressed: () {
-              Navigator.pushNamed(context, AppConstants.profileRoute);
+              Navigator.pushNamed(context, '/admin/profile');
             },
           ),
           IconButton(
