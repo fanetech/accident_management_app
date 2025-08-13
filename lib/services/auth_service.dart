@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -58,6 +59,19 @@ class AuthService {
         email: email,
         password: password,
       );
+      
+      // Save session after successful login
+      if (userCredential.user != null) {
+        final role = await getCurrentUserRole();
+        await _saveSession(role);
+        
+        // Update last login in Firestore
+        await updateUserDocument(
+          uid: userCredential.user!.uid,
+          updates: {'lastLogin': FieldValue.serverTimestamp()},
+        );
+      }
+      
       return userCredential;
     } on FirebaseAuthException catch (e) {
       throw _handleAuthException(e);
@@ -70,6 +84,7 @@ class AuthService {
   Future<void> signOut() async {
     try {
       await _auth.signOut();
+      await _clearSession();
     } catch (e) {
       throw 'Erreur lors de la déconnexion';
     }
@@ -170,6 +185,8 @@ class AuthService {
         await _firestore.collection('users').doc(user.uid).delete();
         // Delete user from Firebase Auth
         await user.delete();
+        // Clear session
+        await _clearSession();
       }
     } on FirebaseAuthException catch (e) {
       throw _handleAuthException(e);
@@ -201,6 +218,44 @@ class AuthService {
         return 'Erreur de connexion réseau';
       default:
         return 'Une erreur s\'est produite: ${e.message}';
+    }
+  }
+  
+  // Session management helpers
+  Future<void> _saveSession(String? role) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('last_login_time', DateTime.now().millisecondsSinceEpoch);
+    if (role != null) {
+      await prefs.setString('user_role', role);
+    }
+  }
+  
+  Future<void> _clearSession() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('last_login_time');
+    await prefs.remove('user_role');
+  }
+  
+  // Check if session is still valid
+  Future<bool> isSessionValid() async {
+    final prefs = await SharedPreferences.getInstance();
+    final lastLoginTime = prefs.getInt('last_login_time');
+    
+    if (lastLoginTime == null) return false;
+    
+    final lastLogin = DateTime.fromMillisecondsSinceEpoch(lastLoginTime);
+    final now = DateTime.now();
+    final difference = now.difference(lastLogin);
+    
+    // Session is valid for 24 hours
+    return difference.inHours < 24;
+  }
+  
+  // Auto logout if session expired
+  Future<void> checkAndHandleSession() async {
+    final isValid = await isSessionValid();
+    if (!isValid && currentUser != null) {
+      await signOut();
     }
   }
 }
